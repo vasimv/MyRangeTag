@@ -31,7 +31,7 @@
 #define TAG_THRESHOLD 400
 
 // Distance correction (in centimeters)
-#define DISTANCE_CORRECTION 50
+#define DISTANCE_CORRECTION 21
 
 // Modbus slave ID
 #define MODBUS_SLAVE 32

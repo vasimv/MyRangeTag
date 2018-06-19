@@ -17,8 +17,14 @@
 #include <string.h>
 #include "MyRangeTag.h"
 
+// Short-range correction for DWM1000 (needs to be calibrated for your modules/antenna!)
+#define SHORTRANGE_CALIB
+
 // Print debug info to the serial console
-// #define DEBUG
+//#define DEBUG
+
+// Ignore settings from EEPROM
+#define IGNORE_EEPROM
 
 // Print extended debug to the console (note, distance ranging may not work properly because delay)!!!
 // #define DEBUG_BROKE
@@ -34,14 +40,14 @@ const uint8_t PIN_SS = SS; // spi select pin
 const uint8_t PIN_LED = 14;
 
 // Variables from EEPROM
-uint16_t myId = 0x0010;
+uint16_t myId = 0x0001;
 // Room number
 uint16_t myRoom = 1;
 // Tag type (T_STATIC, T_MOVING - last one will collect data at higher frequency)
 uint8_t myType = T_MOVING;
 // Coordinates of the tag and degree of north pole (-179..180)
-int32_t myX = 0;
-int32_t myY = 0;
+int32_t myX = 270;
+int32_t myY = 315;
 int32_t myZ = 0;
 int8_t myDegree = 0;
 
@@ -110,7 +116,7 @@ DW1000Time timeComputedRange;
 
 #define POINTS  3
 #define SOLUTIONS 2
-#define TOLERANCE 2500 /*this is the square of the maximum distance of 
+#define TOLERANCE 10000 /*this is the square of the maximum distance of 
                           the two-circle intersection solution point to the 
                           third circle*/
 
@@ -471,6 +477,10 @@ uint32_t crcEEPROM(uint16_t addr, uint16_t len) {
 // Read variables from EEPROM (returns true if success)
 boolean loadEEPROM() {
   uint32_t crc;
+
+#ifdef IGNORE_EEPROM
+  return false;
+#endif
 
   // Check for signature
   if (EEPROM.read(0) != 0xA6) {
@@ -867,10 +877,18 @@ void loop() {
         if (tag) {
           // Check if reported range is not too big
           if ((tag->distance == 0) || (tag->distance > (recvPkt.payload.distance / 10))) {
-            if (recvPkt.payload.distance < DISTANCE_CORRECTION)
+            float distance;
+
+#ifdef SHORTRANGE_CALIB
+            // short distance correction for DWM1000 (less than 3.0m)
+            distance = recvPkt.payload.distance - (((float) recvPkt.payload.distance - 45.0f) / 8.27f) - 9.0f;
+#else
+            distance = recvPkt.payload.distance - 25;
+#endif
+            if (distance < 1)
               tag->distance = 1;
             else
-              tag->distance = recvPkt.payload.distance - DISTANCE_CORRECTION;
+              tag->distance = distance;
           }
           tag->rsi = (uint8_t) abs(DW1000.getReceivePower());
           tag->lastSeen = millis();
